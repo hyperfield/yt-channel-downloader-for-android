@@ -1,0 +1,17 @@
+tmp_downloads/
+
+.gradle/
+build/
+app/build/
+local.properties
+*.iml
+.idea/
+.kotlin/
+.venv/
+
+.DS_Store
+__pycache__/
+*.py[cod]
+
+#Ignore vscode AI rules
+.github/instructions/codacy.instructions.md

@@ -1,0 +1,19 @@
+<resources>
+    <string name="app_name">YT Channel Downloader Android</string>
+    <string name="url_hint">Video URL</string>
+    <string name="default_url">https://www.youtube.com/watch?v=jNQXAC9IVRw</string>
+    <string name="run_smoke_test">Resolve URL</string>
+    <string name="run_download_smoke_test">Start Download</string>
+    <string name="cancel_download">Cancel Download</string>
+    <string name="running">Running...</string>
+    <string name="download_idle">Download idle.</string>
+    <string name="download_starting">Download starting...</string>
+    <string name="download_progress">Status: %1$s | %2$d%% | %3$s</string>
+    <string name="download_completed">Download completed.</string>
+    <string name="download_terminal">Download status: %1$s</string>
+    <string name="download_error">Download failed: %1$s</string>
+    <string name="output_placeholder">Result will appear here.</string>
+    <string name="resolved_items_empty">No resolved items.</string>
+    <string name="resolved_items_selection_summary">Selected %1$d of %2$d items.</string>
+    <string name="error_format">Error: %1$s</string>
+</resources>
