@@ -1,3 +1,4 @@
 appdirs>=1.4.4
 requests>=2.31
-yt-dlp>=2025.11.12
+yt-dlp==2026.3.17
+yt-dlp-ejs==0.8.0

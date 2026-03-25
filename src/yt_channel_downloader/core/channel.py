@@ -10,7 +10,7 @@ from yt_dlp.utils import parse_duration
 from .proxy import build_requests_proxies
 from .quiet_ydl_logger import QuietYDLLogger
 from .settings import CoreSettings, coerce_settings
-from .validators import YouTubeURLValidator, extract_single_media
+from .validators import YouTubeURLValidator, extract_single_media, extract_thumbnail_url
 from ..config.constants import (
     CHANNEL_FETCH_BATCH_SIZE,
     DEFAULT_CHANNEL_FETCH_LIMIT,
@@ -59,6 +59,13 @@ class YTChannel:
                 opts = {}
         elif self.auth_opts:
             opts = dict(self.auth_opts)
+        if self.settings.ffmpeg_location:
+            opts = dict(opts) if opts else {}
+            opts.setdefault('ffmpeg_location', self.settings.ffmpeg_location)
+        js_runtimes = self.settings.build_js_runtimes()
+        if js_runtimes:
+            opts = dict(opts) if opts else {}
+            opts.setdefault('js_runtimes', js_runtimes)
         if self.proxy_url:
             opts = dict(opts) if opts else {}
             opts.setdefault('proxy', self.proxy_url)
@@ -146,6 +153,7 @@ class YTChannel:
                 'title': vid_title,
                 'url': video_url,
                 'duration': duration,
+                'thumbnail': extract_thumbnail_url(video_info, video_url),
             }
         except yt_dlp.utils.DownloadError as e:
             self.logger.exception("Error fetching video metadata for %s: %s", video_url, e)
@@ -323,11 +331,12 @@ class YTChannel:
             return None
         seen_urls.add(video_url)
 
-        title, duration = self._extract_entry_title_and_duration(entry, video_url)
+        title, duration, thumbnail = self._extract_entry_fields(entry, video_url)
         return {
             'title': title or 'Unknown Title',
             'url': video_url,
             'duration': duration,
+            'thumbnail': thumbnail,
         }
 
     def _resolve_entry_url(self, entry):
@@ -339,15 +348,17 @@ class YTChannel:
             video_url = self.base_video_url + video_id
         return video_url
 
-    def _extract_entry_title_and_duration(self, entry, video_url):
+    def _extract_entry_fields(self, entry, video_url):
         title = entry.get('title') or entry.get('alt_title') or entry.get('fulltitle')
         duration = self._extract_duration_seconds(entry)
+        thumbnail = extract_thumbnail_url(entry, video_url)
         metadata = self._maybe_fetch_missing_metadata(video_url, title, duration)
         if metadata:
             title = title or metadata.get('title')
             if duration is None:
                 duration = metadata.get('duration')
-        return title, duration
+            thumbnail = thumbnail or metadata.get('thumbnail')
+        return title, duration, thumbnail
 
     def _maybe_fetch_missing_metadata(self, video_url, title, duration):
         if title and duration is not None:
@@ -369,7 +380,12 @@ class YTChannel:
         total_entries = self._get_playlist_total_count(playlist_url, auth_opts)
         self._report_playlist_start(playlist_url, progress_callback, total_entries)
 
-        entries, total_entries = self._load_playlist_entries(playlist_url, auth_opts, total_entries)
+        entries, total_entries = self._load_playlist_entries(
+            playlist_url,
+            auth_opts,
+            total_entries,
+            limit=limit,
+        )
         if entries:
             video_titles_links = self._collect_playlist_entries(
                 entries, limit, is_cancelled, progress_callback, total_entries
@@ -384,10 +400,19 @@ class YTChannel:
             progress_callback(0, total_entries)
         self.logger.info("Starting playlist fetch for %s (reported total: %s)", playlist_url, total_entries or "unknown")
 
-    def _load_playlist_entries(self, playlist_url, auth_opts, total_entries):
+    def _load_playlist_entries(self, playlist_url, auth_opts, total_entries, limit=None):
         if not YouTubeURLValidator.playlist_exists(playlist_url, auth_opts):
             return [], total_entries
-        entries = YouTubeURLValidator.extract_playlist_entries(playlist_url, auth_opts)
+
+        extract_opts = dict(auth_opts or {})
+        if limit:
+            try:
+                bounded_limit = max(1, int(limit))
+                extract_opts['playlist_items'] = f"1-{bounded_limit}"
+            except (TypeError, ValueError):
+                pass
+
+        entries = YouTubeURLValidator.extract_playlist_entries(playlist_url, extract_opts)
         return entries, total_entries or len(entries)
 
     def _collect_playlist_entries(self, entries, limit, is_cancelled, progress_callback, total_entries):
@@ -427,21 +452,16 @@ class YTChannel:
     def _append_playlist_entry(self, entry, canonical_url, video_titles_links):
         title = entry.get('title') or entry.get('alt_title')
         duration = self._extract_duration_seconds(entry)
-        if title:
-            video_titles_links.append({
-                'title': title,
-                'url': canonical_url,
-                'duration': duration,
-            })
-            return False
+        if not title:
+            entry_id = entry.get('id')
+            title = f"Video {entry_id}" if entry_id else "Unknown Title"
 
-        try:
-            video_data = self.retrieve_video_metadata(canonical_url)
-        except Exception:
-            return False
-
-        if video_data:
-            video_titles_links.append(video_data)
+        video_titles_links.append({
+            'title': title,
+            'url': canonical_url,
+            'duration': duration,
+            'thumbnail': extract_thumbnail_url(entry, canonical_url),
+        })
         return True
 
     def _report_playlist_progress(self, count, total_entries, progress_callback):

@@ -3,7 +3,7 @@
 from .api import CoreClient
 from .channel import YTChannel
 from .downloader import DownloadTask
-from .logger import configure_logging, get_logger, set_logger_factory
+from .logger import configure_android_logging, configure_logging, get_logger, set_logger_factory
 from .proxy import build_proxy_url, build_requests_proxies
 from .settings import CoreSettings, coerce_settings
 from .support_prompt import (
@@ -30,6 +30,7 @@ __all__ = [
     "build_proxy_url",
     "build_requests_proxies",
     "coerce_settings",
+    "configure_android_logging",
     "configure_logging",
     "DEFAULT_SUPPORT_PROMPT_INITIAL_THRESHOLD",
     "DEFAULT_SUPPORT_PROMPT_LONG_SNOOZE",

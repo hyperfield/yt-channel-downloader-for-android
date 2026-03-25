@@ -1,6 +1,7 @@
 import re
 from typing import Any, Dict, Optional
 from urllib.error import HTTPError
+from urllib.parse import parse_qs, urlparse
 
 import yt_dlp
 
@@ -61,6 +62,7 @@ class YouTubeURLValidator:
                 'skip_download': True,
                 'extract_flat': True,
                 'playlistend': 1,
+                'ignoreerrors': True,
             }, extra_opts)
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(playlist_url, download=False)
@@ -84,8 +86,10 @@ class YouTubeURLValidator:
             'no_warnings': False,
             'skip_download': True,
             'noplaylist': False,
+            'extract_flat': True,
             'playlist_items': '1-1000',
             'yes_playlist': True,
+            'ignoreerrors': True,
         }
         ydl_opts = YouTubeURLValidator._build_ydl_opts(base_opts, extra_opts)
         try:
@@ -229,7 +233,8 @@ def _build_media_result(info: Dict[str, Any], original_url: str) -> Dict[str, An
     title = info.get('title') or 'Unknown Title'
     final_url = info.get('webpage_url') or info.get('url') or original_url
     duration = _normalize_duration(info)
-    return {'title': title, 'url': final_url, 'duration': duration}
+    thumbnail = extract_thumbnail_url(info, final_url or original_url)
+    return {'title': title, 'url': final_url, 'duration': duration, 'thumbnail': thumbnail}
 
 
 def _normalize_duration(info: Dict[str, Any]) -> Optional[int]:
@@ -255,6 +260,74 @@ def _coerce_duration_value(value: Any) -> Optional[int]:
         if value.isdigit():
             return int(value)
         return yt_dlp.utils.parse_duration(value)
+    return None
+
+
+def extract_thumbnail_url(info: Optional[Dict[str, Any]], original_url: str = "") -> Optional[str]:
+    if info:
+        thumb = info.get('thumbnail')
+        if isinstance(thumb, str) and thumb:
+            return thumb
+
+        thumbs = info.get('thumbnails')
+        if isinstance(thumbs, list):
+            for candidate in thumbs:
+                url = None
+                if isinstance(candidate, dict):
+                    url = candidate.get('url') or candidate.get('thumb')
+                elif isinstance(candidate, str):
+                    url = candidate
+                if isinstance(url, str) and url:
+                    return url
+
+    fallback_url = ""
+    if info:
+        fallback_url = (
+            info.get('webpage_url')
+            or info.get('url')
+            or original_url
+            or ""
+        )
+    else:
+        fallback_url = original_url or ""
+
+    video_id = _extract_youtube_id(fallback_url)
+    if video_id:
+        return f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
+    return None
+
+
+def _extract_youtube_id(link: str) -> Optional[str]:
+    if not link:
+        return None
+
+    try:
+        parsed = urlparse(link)
+        query = parse_qs(parsed.query)
+        if "v" in query and query["v"]:
+            video_id = query["v"][0].strip()
+            if video_id:
+                return video_id
+
+        path = parsed.path or ""
+        if "youtu.be/" in link:
+            candidate = path.strip("/").split("/")[0]
+            return candidate or None
+
+        if "/shorts/" in path:
+            parts = path.split("/shorts/")
+            if len(parts) > 1:
+                candidate = parts[1].split("/")[0]
+                return candidate or None
+    except Exception:  # noqa: BLE001
+        pass
+
+    if "watch?v=" in link:
+        parts = link.split("watch?v=")
+        if len(parts) > 1:
+            candidate = parts[1].split("&")[0]
+            return candidate or None
+
     return None
 
 

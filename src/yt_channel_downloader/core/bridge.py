@@ -1,4 +1,5 @@
 import json
+import logging
 import threading
 import time
 import uuid
@@ -7,6 +8,7 @@ from urllib.parse import parse_qs, urlparse
 from typing import Any, Callable, Dict, List, Mapping, Optional
 
 from .api import CoreClient
+from .logger import configure_android_logging as _configure_android_logging
 from .settings import CoreSettings
 
 
@@ -227,6 +229,27 @@ def _error_from_payload(payload: Any) -> str:
     return str(payload) if payload is not None else "Unknown error"
 
 
+def _job_item_metadata_updates(payload: Any) -> Dict[str, Any]:
+    if not isinstance(payload, MappingABC):
+        return {}
+
+    updates: Dict[str, Any] = {}
+    for key in (
+        "requested_quality",
+        "actual_quality",
+        "actual_width",
+        "actual_height",
+        "output_filename",
+        "format_summary",
+        "warning",
+        "diagnostic",
+        "fallback_reason",
+    ):
+        if key in payload and payload.get(key) is not None:
+            updates[key] = payload.get(key)
+    return updates
+
+
 def _normalize_download_items(items: Optional[Any]) -> List[Dict[str, Any]]:
     raw_items = _as_python_list(items, "items")
     if not raw_items:
@@ -254,6 +277,15 @@ def _normalize_download_items(items: Optional[Any]) -> List[Dict[str, Any]]:
                 "progress": 0.0,
                 "speed": "N/A",
                 "error": "",
+                "requested_quality": "",
+                "actual_quality": "",
+                "actual_width": None,
+                "actual_height": None,
+                "output_filename": "",
+                "format_summary": "",
+                "warning": "",
+                "diagnostic": "",
+                "fallback_reason": "",
             }
         )
     return normalized_items
@@ -281,6 +313,19 @@ def build_settings(settings: Optional[Mapping[str, Any]] = None) -> CoreSettings
 def build_settings_from_json(payload: str) -> CoreSettings:
     """Build CoreSettings from a JSON string."""
     return CoreSettings.from_dict(_as_python_dict(payload, "settings"))
+
+
+def configure_android_logging(level: Any = "INFO") -> bool:
+    """Enable Python logging to Android Logcat when running under Chaquopy."""
+    if isinstance(level, str):
+        level_name = level.strip().upper() or "INFO"
+        level_value = getattr(logging, level_name, logging.INFO)
+    else:
+        try:
+            level_value = int(level)
+        except (TypeError, ValueError):
+            level_value = logging.INFO
+    return _configure_android_logging(level=level_value)
 
 
 def create_client(
@@ -582,6 +627,7 @@ def start_batch_download(
                             pass
                     if speed_value is not None:
                         updates["speed"] = str(speed_value)
+                    updates.update(_job_item_metadata_updates(payload))
 
                     _update_download_job_item(job_id, item_position, updates)
                     _update_download_job(
@@ -608,14 +654,16 @@ def start_batch_download(
                 def on_error(payload: Dict[str, Any]) -> None:
                     error_message = _error_from_payload(payload)
                     status = "cancelled" if _is_job_cancel_requested(job_id) else "error"
+                    updates = {
+                        "status": status,
+                        "error": error_message,
+                        "speed": "N/A",
+                    }
+                    updates.update(_job_item_metadata_updates(payload))
                     _update_download_job_item(
                         job_id,
                         item_position,
-                        {
-                            "status": status,
-                            "error": error_message,
-                            "speed": "N/A",
-                        },
+                        updates,
                     )
 
                 download(

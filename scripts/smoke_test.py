@@ -60,6 +60,21 @@ def _progress_handler(state):
             state["errors"].append(payload)
             print(f"[download] error: {payload.get('error')}", file=sys.stderr)
             return
+        requested = payload.get("requested_quality")
+        actual = payload.get("actual_quality")
+        warning = payload.get("warning")
+        diagnostic = payload.get("diagnostic")
+        output_filename = payload.get("output_filename")
+        if requested or actual or warning or diagnostic or output_filename:
+            print(
+                "[download] details:"
+                f" requested={requested!r}"
+                f" actual={actual!r}"
+                f" file={output_filename!r}"
+                f" warning={warning!r}"
+            )
+            if diagnostic:
+                print(f"[download] diagnostic: {diagnostic}")
         progress = payload.get("progress")
         speed = payload.get("speed")
         if progress is not None:

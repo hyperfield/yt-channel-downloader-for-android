@@ -126,7 +126,6 @@ def _build_metadata_opts(auth_opts: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         'dump_single_json': True,
         'noplaylist': True,
         'logger': QuietYDLLogger(),
-        'remote_components': ['ejs:github'],
     }
     if auth_opts:
         ydl_opts.update(auth_opts)

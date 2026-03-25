@@ -22,6 +22,9 @@ def _default_download_directory() -> str:
 @dataclass(frozen=True)
 class CoreSettings:
     download_directory: str = field(default_factory=_default_download_directory)
+    ffmpeg_location: str = ""
+    js_runtime_name: str = ""
+    js_runtime_location: str = ""
     preferred_video_format: str = DEFAULT_VIDEO_FORMAT
     preferred_audio_format: str = DEFAULT_AUDIO_FORMAT
     preferred_video_quality: str = DEFAULT_VIDEO_QUALITY
@@ -58,6 +61,9 @@ class CoreSettings:
     def to_dict(self) -> Dict[str, Any]:
         return {
             "download_directory": self.download_directory,
+            "ffmpeg_location": self.ffmpeg_location,
+            "js_runtime_name": self.js_runtime_name,
+            "js_runtime_location": self.js_runtime_location,
             "preferred_video_format": self.preferred_video_format,
             "preferred_audio_format": self.preferred_audio_format,
             "preferred_video_quality": self.preferred_video_quality,
@@ -82,6 +88,17 @@ class CoreSettings:
             "proxy_server_addr": self.proxy_server_addr,
             "proxy_server_port": self.proxy_server_port,
         })
+
+    def build_js_runtimes(self) -> Dict[str, Dict[str, str]]:
+        runtime_name = str(self.js_runtime_name or "").strip().lower()
+        runtime_location = str(self.js_runtime_location or "").strip()
+        if not runtime_name or not runtime_location:
+            return {}
+        return {
+            runtime_name: {
+                "path": runtime_location,
+            },
+        }
 
 
 def coerce_settings(settings: Optional[Union[CoreSettings, Mapping[str, Any]]]) -> CoreSettings:
