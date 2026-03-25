@@ -13,6 +13,8 @@ local.properties
 __pycache__/
 *.py[cod]
 /third_party/ffmpeg/
+/third_party/deno/
+/changelog/
 
 #Ignore vscode AI rules
 .github/instructions/codacy.instructions.md
