@@ -27,6 +27,7 @@ data class MainUiState(
     val activeJobId: String? = null,
     val downloadProgress: Int = 0,
     val downloadStatus: String = "Download idle.",
+    val downloadDetails: String = "",
 )
 
 class MainViewModel(
@@ -69,6 +70,7 @@ class MainViewModel(
                 it.copy(
                     downloadProgress = 0,
                     downloadStatus = "Resolving URL before download...",
+                    downloadDetails = "",
                 )
             }
 
@@ -98,6 +100,7 @@ class MainViewModel(
                         activeJobId = jobId,
                         downloadProgress = 0,
                         downloadStatus = "Download job queued...",
+                        downloadDetails = "",
                     )
                 }
                 monitorDownloadJob(jobId)
@@ -107,6 +110,7 @@ class MainViewModel(
                         isDownloading = false,
                         activeJobId = null,
                         downloadStatus = "Download failed: ${e.message ?: e::class.java.simpleName}",
+                        downloadDetails = "",
                     )
                 }
             }
@@ -142,11 +146,15 @@ class MainViewModel(
                         activeJobId = if (state.isTerminal) null else jobId,
                         downloadProgress = state.progress.coerceIn(0.0, 100.0).toInt(),
                         downloadStatus = formatDownloadStatus(state),
+                        downloadDetails = formatDownloadDetails(state),
                     )
                 }
             } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(downloadStatus = "Cancellation failed: ${e.message ?: e::class.java.simpleName}")
+                    it.copy(
+                        downloadStatus = "Cancellation failed: ${e.message ?: e::class.java.simpleName}",
+                        downloadDetails = "",
+                    )
                 }
             }
         }
@@ -217,13 +225,14 @@ class MainViewModel(
                 val state = try {
                     repository.getJobState(jobId)
                 } catch (e: Exception) {
-                    _uiState.update {
-                        it.copy(
-                            isDownloading = false,
-                            activeJobId = null,
-                            downloadStatus = "Download failed: ${e.message ?: e::class.java.simpleName}",
-                        )
-                    }
+                        _uiState.update {
+                            it.copy(
+                                isDownloading = false,
+                                activeJobId = null,
+                                downloadStatus = "Download failed: ${e.message ?: e::class.java.simpleName}",
+                                downloadDetails = "",
+                            )
+                        }
                     return@launch
                 }
 
@@ -233,6 +242,7 @@ class MainViewModel(
                         activeJobId = if (state.isTerminal) null else jobId,
                         downloadProgress = state.progress.coerceIn(0.0, 100.0).toInt(),
                         downloadStatus = formatDownloadStatus(state),
+                        downloadDetails = formatDownloadDetails(state),
                     )
                 }
 
@@ -253,6 +263,7 @@ class MainViewModel(
 
     private fun formatDownloadStatus(state: DownloadJobState): String {
         val detailedError = state.error ?: state.items.firstNotNullOfOrNull { it.error }
+        val warning = state.items.firstNotNullOfOrNull { it.warning }
         return when (state.status) {
             "queued" -> "Download queued..."
             "starting" -> "Download starting..."
@@ -261,7 +272,10 @@ class MainViewModel(
                 "Downloading $done | ${state.progress.toInt()}% | ${state.speed}"
             }
             "cancelling" -> "Cancelling download..."
-            "completed" -> "Download completed (${state.completedCount}/${state.totalCount})."
+            "completed" -> {
+                val base = "Download completed (${state.completedCount}/${state.totalCount})."
+                if (warning.isNullOrBlank()) base else "$base $warning"
+            }
             "completed_with_errors" -> {
                 "Completed with errors (${state.failedCount} failed of ${state.totalCount}): ${detailedError ?: "Unknown error"}"
             }
@@ -270,6 +284,49 @@ class MainViewModel(
             "missing" -> "Download failed: job not found."
             else -> "Download status: ${state.status}"
         }
+    }
+
+    private fun formatDownloadDetails(state: DownloadJobState): String {
+        val focusItem = state.currentItemIndex?.let { index ->
+            state.items.getOrNull(index)
+        }
+            ?: state.items.lastOrNull { item ->
+                !item.diagnostic.isNullOrBlank() ||
+                    !item.warning.isNullOrBlank() ||
+                    !item.outputFilename.isNullOrBlank()
+            }
+            ?: return ""
+
+        val lines = ArrayList<String>()
+        focusItem.requestedQuality?.takeIf { it.isNotBlank() }?.let {
+            lines += "Requested: $it"
+        }
+
+        val actualParts = ArrayList<String>()
+        focusItem.actualQuality?.takeIf { it.isNotBlank() }?.let { actualParts += it }
+        if (focusItem.actualWidth != null && focusItem.actualHeight != null) {
+            actualParts += "${focusItem.actualWidth}x${focusItem.actualHeight}"
+        }
+        if (actualParts.isNotEmpty()) {
+            lines += "Actual: ${actualParts.joinToString(" | ")}"
+        }
+
+        focusItem.outputFilename?.takeIf { it.isNotBlank() }?.let {
+            lines += "Saved as: $it"
+        }
+        focusItem.formatSummary?.takeIf { it.isNotBlank() }?.let {
+            lines += "Format: $it"
+        }
+        focusItem.warning?.takeIf { it.isNotBlank() }?.let {
+            lines += "Warning: $it"
+        }
+        focusItem.fallbackReason?.takeIf { it.isNotBlank() }?.let {
+            lines += "Fallback: $it"
+        }
+        focusItem.diagnostic?.takeIf { it.isNotBlank() }?.let {
+            lines += "Details: $it"
+        }
+        return lines.joinToString("\n")
     }
 }
 

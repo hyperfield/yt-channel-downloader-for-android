@@ -10,9 +10,11 @@ import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
+import java.util.Locale
 
 class PythonBridgeRepository(
     private val moduleName: String = "yt_channel_downloader.core.bridge",
+    private val extraSettingsProvider: (() -> Map<String, Any>)? = null,
 ) {
     private val bridge by lazy { Python.getInstance().getModule(moduleName) }
 
@@ -20,11 +22,11 @@ class PythonBridgeRepository(
         url: String,
         settings: CoreSettingsDto,
     ): ResolveResult = withContext(Dispatchers.IO) {
-        val jsonPayload = runBridgeCall(timeoutSeconds = RESOLVE_TIMEOUT_SECONDS) {
+        val jsonPayload = runBridgeCall(timeoutSeconds = resolveTimeoutSeconds(url)) {
             bridge.callAttr(
                 "resolve_url_json",
                 url,
-                settings.toPythonMap(),
+                buildSettingsPayload(settings),
             ).toString()
         }
         parseResolveResult(JSONObject(jsonPayload))
@@ -45,7 +47,7 @@ class PythonBridgeRepository(
             )
         }
         runBridgeCall(timeoutSeconds = WRITE_TIMEOUT_SECONDS) {
-            bridge.callAttr("start_batch_download", payload, settings.toPythonMap()).toString()
+            bridge.callAttr("start_batch_download", payload, buildSettingsPayload(settings)).toString()
         }
     }
 
@@ -89,6 +91,14 @@ class PythonBridgeRepository(
         }
     }
 
+    private fun buildSettingsPayload(settings: CoreSettingsDto): HashMap<String, Any> {
+        val payload = settings.toPythonMap()
+        extraSettingsProvider?.invoke()?.forEach { (key, value) ->
+            payload[key] = value
+        }
+        return payload
+    }
+
     private fun parseResolveResult(root: JSONObject): ResolveResult {
         val itemsArray = root.optJSONArray("items") ?: JSONArray()
         val items = ArrayList<ResolvedItem>(itemsArray.length())
@@ -100,6 +110,7 @@ class PythonBridgeRepository(
                     title = item.optString("title", "Untitled"),
                     url = item.optString("url", ""),
                     durationSeconds = parseOptionalInt(item.opt("duration")),
+                    thumbnailUrl = item.optNullableString("thumbnail"),
                 ),
             )
         }
@@ -128,6 +139,15 @@ class PythonBridgeRepository(
                     progress = parseOptionalDouble(item.opt("progress")) ?: 0.0,
                     speed = item.optString("speed", "N/A"),
                     error = item.optNullableString("error"),
+                    requestedQuality = item.optNullableString("requested_quality"),
+                    actualQuality = item.optNullableString("actual_quality"),
+                    actualWidth = parseOptionalInt(item.opt("actual_width")),
+                    actualHeight = parseOptionalInt(item.opt("actual_height")),
+                    outputFilename = item.optNullableString("output_filename"),
+                    formatSummary = item.optNullableString("format_summary"),
+                    warning = item.optNullableString("warning"),
+                    diagnostic = item.optNullableString("diagnostic"),
+                    fallbackReason = item.optNullableString("fallback_reason"),
                 ),
             )
         }
@@ -172,8 +192,19 @@ class PythonBridgeRepository(
         }
     }
 
+    private fun resolveTimeoutSeconds(url: String): Long {
+        val normalized = url.lowercase(Locale.ROOT)
+        val isPlaylist = normalized.contains("list=") || normalized.contains("/playlist")
+        val isChannel = normalized.contains("/channel/") ||
+            normalized.contains("/@") ||
+            normalized.contains("/user/") ||
+            normalized.contains("/c/")
+        return if (isPlaylist || isChannel) FEED_RESOLVE_TIMEOUT_SECONDS else RESOLVE_TIMEOUT_SECONDS
+    }
+
     companion object {
         private const val RESOLVE_TIMEOUT_SECONDS = 25L
+        private const val FEED_RESOLVE_TIMEOUT_SECONDS = 90L
         private const val READ_TIMEOUT_SECONDS = 8L
         private const val WRITE_TIMEOUT_SECONDS = 12L
         private val bridgeExecutor = Executors.newCachedThreadPool()

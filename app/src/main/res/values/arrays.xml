@@ -1,0 +1,53 @@
+<resources>
+    <string-array name="video_format_options">
+        <item>Any</item>
+        <item>mp4</item>
+        <item>webm</item>
+        <item>avi</item>
+        <item>mov</item>
+        <item>mkv</item>
+        <item>flv</item>
+        <item>3gp</item>
+    </string-array>
+
+    <string-array name="audio_format_options">
+        <item>Any</item>
+        <item>mp3</item>
+        <item>ogg / oga [Vorbis]</item>
+        <item>m4a</item>
+        <item>aac</item>
+        <item>opus</item>
+        <item>flac</item>
+        <item>wav</item>
+    </string-array>
+
+    <string-array name="video_quality_options">
+        <item>144p</item>
+        <item>240p</item>
+        <item>360p</item>
+        <item>480p</item>
+        <item>720p (HD)</item>
+        <item>1080p (Full HD)</item>
+        <item>1440p (2K)</item>
+        <item>2160p (4K)</item>
+        <item>Best available</item>
+    </string-array>
+
+    <string-array name="audio_quality_options">
+        <item>32 kbps</item>
+        <item>64 kbps</item>
+        <item>128 kbps</item>
+        <item>160 kbps</item>
+        <item>192 kbps</item>
+        <item>256 kbps</item>
+        <item>320 kbps</item>
+        <item>Best available</item>
+    </string-array>
+
+    <string-array name="proxy_type_options">
+        <item>None</item>
+        <item>HTTPS</item>
+        <item>SOCKS4</item>
+        <item>SOCKS5</item>
+    </string-array>
+</resources>

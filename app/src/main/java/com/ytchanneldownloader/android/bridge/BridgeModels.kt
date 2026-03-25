@@ -5,6 +5,7 @@ data class ResolvedItem(
     val title: String,
     val url: String,
     val durationSeconds: Int?,
+    val thumbnailUrl: String?,
 )
 
 data class ResolveResult(
@@ -27,6 +28,15 @@ data class DownloadItemState(
     val progress: Double,
     val speed: String,
     val error: String?,
+    val requestedQuality: String?,
+    val actualQuality: String?,
+    val actualWidth: Int?,
+    val actualHeight: Int?,
+    val outputFilename: String?,
+    val formatSummary: String?,
+    val warning: String?,
+    val diagnostic: String?,
+    val fallbackReason: String?,
 )
 
 data class DownloadJobState(
