@@ -11,6 +11,33 @@ The app expects the runtime to be packaged as:
 Those files are not committed by default. You build them locally and then
 rebuild the Android app.
 
+## Why This Exists
+
+The Android app uses Python `yt-dlp` through Chaquopy. For YouTube, modern
+`yt-dlp` behavior increasingly depends on JavaScript execution support via
+`yt-dlp-ejs`.
+
+Without a supported JavaScript runtime, the app may still appear to work, but
+`yt-dlp` emits warnings like:
+
+- `No supported JavaScript runtime could be found`
+
+and the practical consequences can include:
+
+- incomplete YouTube extraction
+- missing formats
+- lower-quality fallback downloads than expected
+- more brittle behavior when YouTube changes its extraction logic
+
+This is separate from FFmpeg:
+
+- FFmpeg is needed for adaptive video/audio merging
+- Deno is needed so `yt-dlp-ejs` has a supported JavaScript runtime
+
+So the motivation for bundling Deno is not cosmetic. It is part of making the
+Android app behave more like the desktop ancestor for YouTube extraction,
+format discovery, and quality selection.
+
 ## Recommended Build Host
 
 The safest host is:
